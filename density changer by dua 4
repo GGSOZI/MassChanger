@@ -1,0 +1,104 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "DensityChanger"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 90)
+frame.Position = UDim2.new(0.5, -110, 0.5, -45)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+title.Text = "Player Density (Weight)"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 14
+title.Parent = frame
+
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(0.9, 0, 0, 35)
+box.Position = UDim2.new(0.05, 0, 0.45, 0)
+box.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+box.TextColor3 = Color3.new(1, 1, 1)
+box.PlaceholderText = "e.g. 0.7"
+box.Text = ""
+box.Font = Enum.Font.SourceSans
+box.TextSize = 16
+box.ClearTextOnFocus = false
+box.Parent = frame
+
+-- Drag
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                               startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Apply density
+local currentDensity = nil
+
+local function applyDensity(value)
+    local char = player.Character
+    if not char then return end
+    currentDensity = value
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Massless = false -- make sure it contributes to weight
+            local props = PhysicalProperties.new(value, 0.3, 0.5, 1, 1)
+            part.CustomPhysicalProperties = props
+        end
+    end
+end
+
+-- Auto-apply as you type
+box:GetPropertyChangedSignal("Text"):Connect(function()
+    local num = tonumber(box.Text)
+    if num then
+        num = math.clamp(num, 0.001, 100) -- safe range
+        applyDensity(num)
+    end
+end)
+
+-- Reapply after respawn
+player.CharacterAdded:Connect(function(char)
+    char:WaitForChild("Humanoid")
+    task.wait(0.5)
+    if currentDensity then
+        applyDensity(currentDensity)
+    end
+end)
